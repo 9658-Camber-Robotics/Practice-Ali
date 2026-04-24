@@ -7,13 +7,20 @@ package frc.robot;
 import frc.robot.Constants.OperatorConstants;
 import frc.robot.commands.Autos;
 import frc.robot.commands.ExampleCommand;
-import frc.robot.subsystems.ExampleSubsystem;
-
-import static edu.wpi.first.units.Units.Meters;
-
+import frc.robot.subsystems.ArmSubsystem;
+import frc.robot.subsystems.ElevatorSubsystem;
+import frc.robot.subsystems.ShooterSubsystem;
+import frc.robot.subsystems.SwerveSubsystem;
+import swervelib.SwerveInputStream;
+import edu.wpi.first.wpilibj.RobotBase;
 import edu.wpi.first.wpilibj2.command.Command;
+import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
+import static edu.wpi.first.units.Units.RPM;
+import static edu.wpi.first.units.Units.Degrees;
+
+
 
 /**
  * This class is where the bulk of the robot should be declared. Since Command-based is a
@@ -23,21 +30,66 @@ import edu.wpi.first.wpilibj2.command.button.Trigger;
  */
 public class RobotContainer {
   // The robot's subsystems and commands are defined here...
-  private final ExampleSubsystem m_exampleSubsystem = new ExampleSubsystem();
-
+    private final ArmSubsystem armSubsystem = new ArmSubsystem();
+    private final ShooterSubsystem shooterSubsystem = new ShooterSubsystem();
+  private final ElevatorSubsystem m_exampleSubsystem = new ElevatorSubsystem();
+  private final SwerveSubsystem drivebase = new SwerveSubsystem();
   // Replace with CommandPS4Controller or CommandJoystick if needed
+  
+  
   private final CommandXboxController m_driverController =
       new CommandXboxController(OperatorConstants.kDriverControllerPort);
+
 
   /** The container for the robot. Contains subsystems, OI devices, and commands. */
   public RobotContainer() {
     // Configure the trigger bindings
     configureBindings();
-
-    // Set the default command to force the elevator to go to 0.
-    m_exampleSubsystem.setDefaultCommand(m_exampleSubsystem.setHeight(Meters.of(0)));
+    drivebase.setDefaultCommand(!RobotBase.isSimulation() ? driveFieldOrientedAngularVelocity : driveFieldOrientedDirectAngleSim);
   }
 
+  SwerveInputStream driveAngularVelocity = SwerveInputStream.of(drivebase.getSwerveDrive(),
+                                                                () -> m_driverController.getLeftY() * -1,
+                                                                () -> m_driverController.getLeftX() * -1)
+                                                                .withControllerRotationAxis(m_driverController::getRightX)
+                                                                .deadband(OperatorConstants.DEADBAND)
+                                                                .scaleTranslation(0.8)
+                                                                .allianceRelativeControl(true);
+
+  SwerveInputStream driveDriectAngle = driveAngularVelocity.copy().withControllerHeadingAxis(m_driverController::getRightX, 
+                                                                                             m_driverController::getRightY)
+                                                                                             .headingWhile(true);
+
+  Command driveFieldOrientedDriectAngle = drivebase.driveFieldOriented(driveDriectAngle);
+  
+  Command driveFieldOrientedAngularVelocity = drivebase.driveFieldOriented(driveAngularVelocity);
+
+
+
+  SwerveInputStream driveAngularVelocitySim = SwerveInputStream.of(drivebase.getSwerveDrive(),
+                                                                    () -> m_driverController.getLeftY(),
+                                                                    () -> m_driverController.getLeftX())
+                                                                  .withControllerRotationAxis(() -> m_driverController.getRawAxis(2))
+                                                                  .deadband(OperatorConstants.DEADBAND)
+                                                                  .scaleTranslation(0.8)
+                                                                  .allianceRelativeControl(true);
+
+  // Derive the heading axis with math :(
+  SwerveInputStream driveDirectAngleSim     = driveAngularVelocitySim.copy()
+                                                                      .withControllerHeadingAxis(() -> Math.sin(
+                                                                                                      m_driverController.getRawAxis(
+                                                                                                        2) * Math.PI) * (Math.PI * 2),
+                                                                                                () -> Math.cos(
+                                                                                                      m_driverController.getRawAxis(
+                                                                                                        2) * Math.PI) * 
+                                                                                                        (Math.PI * 2))
+                                                                      .headingWhile(true);
+
+  Command driveFieldOrientedDirectAngleSim = drivebase.driveFieldOriented(driveDirectAngleSim);
+                                                                                                
+                                                                                                       
+
+                                                                                              
   /**
    * Use this method to define your trigger->command mappings. Triggers can be created via the
    * {@link Trigger#Trigger(java.util.function.BooleanSupplier)} constructor with an arbitrary
@@ -49,15 +101,17 @@ public class RobotContainer {
    */
   private void configureBindings() {
     
-    // Schedule `setHeight` when the Xbox controller's B button is pressed,
-    // cancelling on release.
-    m_driverController.a().whileTrue(m_exampleSubsystem.setHeight(Meters.of(0.5)));
-    m_driverController.b().whileTrue(m_exampleSubsystem.setHeight(Meters.of(1)));
-    // Schedule `set` when the Xbox controller's B button is pressed,
-    // cancelling on release.
-    m_driverController.x().whileTrue(m_exampleSubsystem.set(0.3));
-    m_driverController.y().whileTrue(m_exampleSubsystem.set(-0.3));
+    // Schedule `ExampleCommand` when `exampleCondition` changes to `true`
+    new Trigger(m_exampleSubsystem::exampleCondition)
+        .onTrue(new ExampleCommand(m_exampleSubsystem));
 
+    // Schedule `exampleMethodCommand` when the Xbox controller's B button is pressed,
+    // cancelling on release.
+//    m_driverController.b().whileTrue(m_exampleSubsystem.exampleMethodCommand());
+    m_driverController.button(1).whileTrue(armSubsystem.setAngle(Degrees.of(90)));
+    m_driverController.button(2).whileTrue(armSubsystem.setAngle(Degrees.of(0)));
+    m_driverController.button(3).whileTrue(shooterSubsystem.setVelocity(RPM.of(4500)));
+    m_driverController.button(4).whileTrue(shooterSubsystem.setVelocity(RPM.of(0)));
   }
 
   /**
@@ -65,8 +119,17 @@ public class RobotContainer {
    *
    * @return the command to run in autonomous
    */
+
+
+  
+
   public Command getAutonomousCommand() {
     // An example command will be run in autonomous
-    return Autos.exampleAuto(m_exampleSubsystem);
-  }
-}
+    return Commands.none(); 
+
+
+      }
+    }
+
+
+

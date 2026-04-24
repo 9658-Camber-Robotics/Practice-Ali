@@ -36,7 +36,7 @@ import yams.motorcontrollers.SmartMotorControllerConfig.MotorMode;
 import yams.motorcontrollers.SmartMotorControllerConfig.TelemetryVerbosity;
 import yams.motorcontrollers.local.SparkWrapper;
 
-public class ExampleSubsystem extends SubsystemBase {
+public class ElevatorSubsystem extends SubsystemBase {
 
   private SmartMotorControllerConfig smcConfig = new SmartMotorControllerConfig(this)
     .withControlMode(ControlMode.CLOSED_LOOP)
@@ -94,7 +94,7 @@ public class ExampleSubsystem extends SubsystemBase {
   public Command sysId() { return elevator.sysId(Volts.of(7), Volts.of(2).per(Second), Seconds.of(4));}
 
   /** Creates a new ExampleSubsystem. */
-  public ExampleSubsystem() {}
+  public ElevatorSubsystem() {}
 
   /**
    * Example command factory method.
